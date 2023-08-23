@@ -1,0 +1,5 @@
+# Ignore files ending in 'token.json'
+*token.json
+
+# Include other JSON files
+!*.json
