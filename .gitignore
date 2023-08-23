@@ -1,3 +1,4 @@
 # Ignore files ending in 'token.json'
 *token.json
-
+# ignore client secrets
+client_secrets.json
