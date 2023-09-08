@@ -27,6 +27,8 @@ import numpy as np
 import json
 import pickle
 import glob
+from ctypes import windll
+
 
 # Imports related to google API
 from google.oauth2 import credentials
@@ -586,101 +588,307 @@ def find_events():
         event = Event(event_name.strip(), signup_date, start_date, end_date, event_location.strip(), event_organisation.strip(), "No link available yet", event_notes)
         events.append(event)
     return events
+
+def create_new_form(events):
+    # Form 'updates': all modifications to go from the default form to the required form 
+
+    # Request body for creating a Google Form file in the specified folder
+    NEW_FORM = {
+        "name": "Competition Signup Form",
+        "parents": [folder_id],
+        "mimeType": "application/vnd.google-apps.form"
+    }
+
+    with open("form_description.txt", "r", encoding="utf-8") as file:
+        new_description = file.read()
+
+    update_description = {
+        "requests" : [{
+            "updateFormInfo" : {
+                "info" : {
+                    "description": new_description
+                },
+                "updateMask" : "description"
+            }
+        }]
+    }
+
+    name_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "What is your name?",
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "textQuestion": {}
+                        }
+                    },
+                },
+                "location": {
+                    "index": 0
+                }
+            }
+        }]
+    }
+
+    competitions = [
+        {
+            "value": f"{event.name} on {dtStylish(event.start_date, True)} to {dtStylish(event.end_date)}in {event.location}"
+        }
+        for event in events
+        if "deelname op uitnodiging" not in event.notes.lower()
+    ]
+
+    competition_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "Select all competitions you want to sign up for:",
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "choiceQuestion": {
+                                "type": "CHECKBOX",
+                                "options": competitions,
+                                "shuffle": False
+                            }
+                        }
+                    },
+                },
+                "location": {
+                    "index": 1
+                }
+            }
+        }]
+    }
+
+    weightclass_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "What weightclass do you want to compete in?",
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "choiceQuestion": {
+                                "type": "DROP_DOWN",
+                                "options": [
+                                    {"value": "F47-"},
+                                    {"value": "F52-"},
+                                    {"value": "F57-"},
+                                    {"value": "F63-"},
+                                    {"value": "F69-"},
+                                    {"value": "F76-"},
+                                    {"value": "F84-"},
+                                    {"value": "F84+"},
+                                    {"value": "M59-"},
+                                    {"value": "M66-"},
+                                    {"value": "M74-"},
+                                    {"value": "M83-"},
+                                    {"value": "M93-"},
+                                    {"value": "M105-"},
+                                    {"value": "M120-"},
+                                    {"value": "M120+"},
+                                ],
+                                "shuffle": False
+                            }
+                        }
+                    },
+                },
+                "location": {
+                    "index": 2
+                }
+            }
+        }]
+    }
+
+    squat_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "Enter an estimate for your potential squat for this competition. This is used to determine the order of the lifters.",
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "textQuestion": {}
+                        }
+                    },
+                },
+                "location": {
+                    "index": 3
+                }
+            }
+        }]
+    }
+
+    bench_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "Enter an estimate for your potential bench press for this competition. This is used to determine the order of the lifters.",
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "textQuestion": {}
+                        }
+                    },
+                },
+                "location": {
+                    "index": 4
+                }
+            }
+        }]
+    }
+
+    deadlift_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "Enter an estimate for your potential deadlift for this competition. This is used to determine the order of the lifters.",
+                    "questionItem": {
+                        "question": {
+                            "required": True,
+                            "textQuestion": {}
+                        }
+                    },
+                },
+                "location": {
+                    "index": 5
+                }
+            }
+        }]
+    }
+
+    coach_name_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "Enter your coaches name if you have one already.",
+                    "questionItem": {
+                        "question": {
+                            "required": False,
+                            "textQuestion": {}
+                        }
+                    },
+                },
+                "location": {
+                    "index": 6
+                }
+            }
+        }]
+    }
+
+    coach_knkf_number_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "Enter your coaches KNKF number if you have one already.",
+                    "questionItem": {
+                        "question": {
+                            "required": False,
+                            "textQuestion": {}
+                        }
+                    },
+                },
+                "location": {
+                    "index": 7
+                }
+            }
+        }]
+    }
+
+    coach_dob_question = {
+        "requests": [{
+            "createItem": {
+                "item": {
+                    "title": "Enter your coaches date of birth if you have one already.",
+                    "questionItem": {
+                        "question": {
+                            "required": False,
+                            "dateQuestion": {
+                                "includeTime": False,
+                                "includeYear": True
+                            }
+                        }
+                    },
+                },
+                "location": {
+                    "index": 8
+                }
+            }
+        }]
+    }
+
+    # Add request to remove the initial question
+    remove_question = {
+        "requests": [{
+            "deleteItem": {
+                "location": {
+                    "index": 9
+                }
+            }
+        }]
+    }
+
+    try:
+        # Create the Google Form file in the specified folder
+        form_file = drive_service.files().create(body=NEW_FORM, media_body=None).execute()
+        
+        form_id = form_file['id']
+        
+        new_questions=[update_description, name_question, competition_question, weightclass_question, 
+                    squat_question, bench_question, deadlift_question, coach_name_question, coach_knkf_number_question, coach_dob_question, remove_question]
+        # Add your code to add questions to the form (similar to your previous code)
+        print(f"Form with form ID {form_id} created in folder with ID: {folder_id}")
     
+        # Adds the question to the form
+        for new_question in new_questions:
+            question_setting = forms_service.forms().batchUpdate(formId=form_id, body=new_question).execute()
+
+    except HttpError as error:
+        print(f"An HTTP error occurred: {error}")
+
+    # The following request runs a script in google apps scripts API.
+    # For now, it changes two things: 
+    # Set RequireLogin to False so that anyone can respond to the form and not just users in the organization.
+    # Set ShowLinkToRespondAgain to True so that you can easily respond to the form multiple times.
+
+    # Create an execution request object.
+    request = {
+            'function': 'updateFormSettings',
+            'parameters': [form_id]
+        }
+
+    try:
+        # Make the API request.
+        response = scripts_service.scripts().run(scriptId=script_id,
+                                            body=request).execute()
+
+    except HttpError as error:
+        # The API encountered a problem before the script started executing.
+        print(f"An error occurred: {error}")
+        print(error.content)
+            
+    # Load the JSON file into a dictionary
+    with open('config.json', 'r') as file:
+        config = json.load(file)
+
+    # Edit a single variable in the dictionary
+    config['last_access'] = f"{datetime.now().isoformat()}"
+    config['form_id'] = form_id
+    # Store the order of the questions by id, as apparently the responses are not stored in the same order as the questions, but do contain the questionid. 
+    # After retrieving the responses, the answers can be organized by this id order. 
+    form = forms_service.forms().get(formId=form_id).execute()
+    config['question_order'] = ' '.join([subsubitem["questionId"] for subsubitem in [subitem["question"] for subitem in [item["questionItem"] for item in form["items"]]]])
+
+    # Save the updated dictionary back to the JSON file
+    with open('config.json', 'w') as file:
+        json.dump(config, file)     
     
 def make_form_and_save(new_events):
     create_new_form(new_events)
     save_events_to_file(new_events)
-
-class CheckBoxDemo(ttk.LabelFrame):
-    def __init__(self, parent):
-        super().__init__(parent, text="Checkbuttons", padding=15)
-
-        self.var_1 = tkinter.BooleanVar(self, False)
-        self.var_2 = tkinter.BooleanVar(self, True)
-
-        self.add_widgets()
-
-    def add_widgets(self):
-        self.checkbox_1 = ttk.Checkbutton(self, text="Europe")
-        self.checkbox_1.grid(row=0, column=0, pady=(0, 10), sticky="w")
-
-        self.checkbox_2 = ttk.Checkbutton(self, text="France", variable=self.var_1)
-        self.checkbox_2.grid(row=1, column=0, padx=(30, 0), pady=(5, 10), sticky="w")
-
-        self.checkbox_3 = ttk.Checkbutton(self, text="Germany", variable=self.var_2)
-        self.checkbox_3.grid(row=2, column=0, padx=(30, 0), pady=10, sticky="w")
-
-        self.checkbox_4 = ttk.Checkbutton(self, text="Fooland")
-        self.checkbox_4.state({"disabled", "!alternate"})
-        self.checkbox_4.grid(row=3, column=0, padx=(30, 0), pady=(10, 0), sticky="w")
-
-
-class RadioButtonDemo(ttk.LabelFrame):
-    def __init__(self, parent):
-        super().__init__(parent, text="Radiobuttons", padding=15)
-
-        self.var = tkinter.IntVar()
-
-        self.add_widgets()
-
-    def add_widgets(self):
-        self.radio_1 = ttk.Radiobutton(self, text="Dog", variable=self.var, value=0)
-        self.radio_1.grid(row=0, column=0, pady=(0, 10), sticky="w")
-
-        self.radio_1 = ttk.Radiobutton(self, text="Cat", variable=self.var, value=1)
-        self.radio_1.grid(row=1, column=0, pady=10, sticky="w")
-
-        self.radio_1 = ttk.Radiobutton(self, text="Neither", state="disabled")
-        self.radio_1.grid(row=2, column=0, pady=(10, 0), sticky="w")
-
-
-class InputsAndButtonsDemo(ttk.Frame):
-    def __init__(self, parent):
-        super().__init__(parent, style="Card.TFrame", padding=15)
-
-        self.columnconfigure(0, weight=1)
-
-        self.add_widgets()
-
-    def add_widgets(self):
-        self.entry = ttk.Entry(self)
-        self.entry.insert(0, "Type here")
-        self.entry.grid(row=0, column=0, padx=5, pady=(0, 10), sticky="ew")
-
-        self.spinbox = ttk.Spinbox(self, from_=0, to=100, increment=0.01)
-        self.spinbox.insert(0, "3.14")
-        self.spinbox.grid(row=1, column=0, padx=5, pady=10, sticky="ew")
-
-        combo_list = ["Lorem", "Ipsum", "Dolor"]
-
-        self.combobox = ttk.Combobox(self, values=combo_list)
-        self.combobox.current(0)
-        self.combobox.grid(row=2, column=0, padx=5, pady=10, sticky="ew")
-
-        self.readonly_combo = ttk.Combobox(self, state="readonly", values=combo_list)
-        self.readonly_combo.current(1)
-        self.readonly_combo.grid(row=3, column=0, padx=5, pady=10, sticky="ew")
-
-        self.menu = tkinter.Menu(self)
-        for n in range(1, 5):
-            self.menu.add_command(label=f"Menu item {n}")
-
-        self.menubutton = ttk.Menubutton(self, text="Dropdown", menu=self.menu)
-        self.menubutton.grid(row=4, column=0, padx=5, pady=10, sticky="nsew")
-
-        self.separator = ttk.Separator(self)
-        self.separator.grid(row=5, column=0, pady=10, sticky="ew")
-
-        self.button = ttk.Button(self, text="Click me!")
-        self.button.grid(row=6, column=0, padx=5, pady=10, sticky="ew")
-
-        self.accentbutton = ttk.Button(self, text=" I love it!", style="Accent.TButton")
-        self.accentbutton.grid(row=7, column=0, padx=5, pady=10, sticky="ew")
-
-        self.togglebutton = ttk.Checkbutton(self, text="Toggle me!", style="Toggle.TButton")
-        self.togglebutton.grid(row=8, column=0, padx=5, pady=10, sticky="nsew")
-
 
 class CompLists(ttk.PanedWindow):
     def __init__(self, parent):
@@ -819,7 +1027,6 @@ class CompComparator(ttk.PanedWindow):
         self.reader.pack(fill='both', expand='yes')
 
 class Reader(ttk.Frame):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.configure(padding=10)
@@ -848,13 +1055,11 @@ class App(ttk.Frame):
 
 
 def main():
+    windll.shcore.SetProcessDpiAwareness(1)
     root = tk.Tk()
     root.title("Competition Signup")
-
     sv_ttk.set_theme("dark")
-
     App(root).pack(expand=True, fill="both")
-
     root.mainloop()
 
 
