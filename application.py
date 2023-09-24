@@ -49,18 +49,18 @@ from fuzzywuzzy import process
 
 
 
-with open('config.json', 'r') as file:
-    config = json.load(file)
+with open('data\\saved_vars.json', 'r') as file:
+    saved_vars = json.load(file)
     # Mapping of abbreviated months to full months
-    month_mapping = config['month_mapping']
+    month_mapping = saved_vars['month_mapping']
     # Threshold for fuzzy comparison of strings
-    fuzzy_threshold = config['fuzzy_threshold']
+    fuzzy_threshold = saved_vars['fuzzy_threshold']
     # ID of the google drive folder to work in 
-    folder_id = config['folder_id']
+    folder_id = saved_vars['folder_id']
     # ID of the google apps script to run when a form is created
-    script_id = config['script_id']
+    script_id = saved_vars['script_id']
     
-athlete_status = pd.read_pickle('athlete_status.pkl')
+athlete_status = pd.read_pickle('data\\athlete_status.pkl')
 
 def ordinal_suffix(day):
     return str(day)+("th" if 4<=day%100<=20 else {1:"st",2:"nd",3:"rd"}.get(day%10, "th"))
@@ -69,7 +69,8 @@ def dtStylish(dt, compact=False):
     return dt.strftime(f"%a the {{th}}{' of %B %Y' if not compact else ''} ").replace("{th}", ordinal_suffix(dt.day))
 
 def load_previous_events_from_file():
-    with open(f"{glob.glob('events*.pkl')[0]}", "rb") as file:
+    events_path = glob.glob('data\\events*.pkl')[0]
+    with open(f"{events_path}", "rb") as file:
         events_list = pickle.load(file)
     return events_list
 
@@ -81,12 +82,12 @@ def get_new_responses(do_print=False):
     SKIP_OLD_DATA = True
 
     # Load the JSON file into a dictionary
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    with open('data\\saved_vars.json', 'r') as file:
+        saved_vars = json.load(file)
     # Load variables from dictionary
-    form_id = config['form_id']
-    last_access = datetime.fromisoformat(config['last_access'])
-    sheet_id = config['sheet_id']
+    form_id = saved_vars['form_id']
+    last_access = datetime.fromisoformat(saved_vars['last_access'])
+    sheet_id = saved_vars['sheet_id']
     
     try:
         form_responses = forms_service.forms().responses().list(formId=form_id).execute()
@@ -96,10 +97,10 @@ def get_new_responses(do_print=False):
     try:
         if SKIP_OLD_DATA:
             # Write the current time back
-            config['last_access'] = datetime.now().isoformat()
+            saved_vars['last_access'] = datetime.now().isoformat()
             # Save the updated dictionary back to the JSON file
-            with open('config.json', 'w') as file:
-                json.dump(config, file) 
+            with open('data\\saved_vars.json', 'w') as file:
+                json.dump(saved_vars, file) 
         rows = []
         for form_response in form_responses['responses']:
             # createTime is when the form response was submitted. 
@@ -116,7 +117,7 @@ def get_new_responses(do_print=False):
             answers = [(answer['questionId'], answer['textAnswers']['answers']) for answer in answer_data]
             # The answers are sorted by their question ids. For some reason, the google API shuffles the answers. 
             # The answers are 'unshuffled' here, pairing question ids with the order of those ids stored earlier.
-            question_order = config['question_order']
+            question_order = saved_vars['question_order']
             question_order = [str(item) for item in question_order.split(" ")]
 
             answers_dict = {key: value for key, value in answers}
@@ -273,15 +274,15 @@ def get_athlete_status(do_print=False):
         for row in rows:
             print(row)
     df = pd.DataFrame(rows)
-    df.to_pickle('athlete_status.pkl') 
+    df.to_pickle('data\\athlete_status.pkl') 
     if do_print:
         print(tabulate(df, headers='keys', tablefmt='psql'))
         
     # Load the JSON file into a dictionary
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    with open('data\\saved_vars.json', 'r') as file:
+        saved_vars = json.load(file)
     # Load variables from dictionary
-    sheet_id = config['sheet_id']
+    sheet_id = saved_vars['sheet_id']
     
     sh = gc.open_by_key(sheet_id)
     worksheet = sh.worksheets()[1]
@@ -327,17 +328,17 @@ def get_credentials(type):
     
     if type.lower() == "drive":
         SCOPES = ["https://www.googleapis.com/auth/drive.file"]  # Use the appropriate scope for the Google Drive API
-        TOKEN_FILE = "drive_token.json"
+        TOKEN_FILE = "tokens\\drive_token.json"
     elif type.lower() == "forms":
         SCOPES = ['https://www.googleapis.com/auth/forms.body', 
                   'https://www.googleapis.com/auth/forms.responses.readonly']
-        TOKEN_FILE = "form_token.json"
+        TOKEN_FILE = "tokens\\form_token.json"
     elif type.lower() == "scripts":
         SCOPES = ['https://www.googleapis.com/auth/script.projects', 'https://www.googleapis.com/auth/forms']
-        TOKEN_FILE = "scripts_token.json"
+        TOKEN_FILE = "tokens\\scripts_token.json"
     elif type.lower() == "read_mail":
         SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.modify', 'https://mail.google.com/']
-        TOKEN_FILE = "read_mail_token.json"
+        TOKEN_FILE = "tokens\\read_mail_token.json"
     else:
         print("Unsupported credential type. Please enter a supported type or implement the missing type.")
         return None
@@ -350,7 +351,7 @@ def get_credentials(type):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("client_secrets.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file("tokens\\client_secrets.json", SCOPES)
             creds = flow.run_local_server(port=0)
         with open(TOKEN_FILE, "w") as token:
             token.write(creds.to_json())
@@ -359,7 +360,12 @@ def get_credentials(type):
 def find_name(name):
     # Apply the function to the DataFrame and get the best match
     athlete_status["SimilarityScore"] = athlete_status["Name"].apply(fuzz.token_sort_ratio, args = (name,))
-    best_match_row = athlete_status[athlete_status["SimilarityScore"] >= fuzzy_threshold].sort_values(by="SimilarityScore", ascending=False).iloc[0]
+    similar_names = athlete_status[athlete_status["SimilarityScore"] >= fuzzy_threshold]
+    if len(similar_names) > 0:
+        best_match_row = similar_names.sort_values(by="SimilarityScore", ascending=False).iloc[0]
+    else:
+        print("No acceptable match found.")
+        return ["ERROR", "Name not found"] 
 
     # Extract the best match and its similarity score
     best_match = best_match_row["Name"]
@@ -466,18 +472,18 @@ scripts_service = build('script', 'v1', credentials=scripts_creds) # for some re
 
 
 gc = gspread.oauth(
-    credentials_filename="client_secrets.json",
-    authorized_user_filename='gspread_token.json'
+    credentials_filename="tokens\\client_secrets.json",
+    authorized_user_filename='tokens\\gspread_token.json'
 )     
 
 def write_wa_msg(events):
     # Load the JSON file into a dictionary
-    with open('config.json', 'r') as file:
-        config = json.load(file)
-    form_id = config['form_id']
+    with open('data\\saved_vars.json', 'r') as file:
+        saved_vars = json.load(file)
+    form_id = saved_vars['form_id']
     # Define input and output file paths
-    input_file_path = 'whatsapp_msg_def.txt'
-    output_file_path = 'whatsapp_msg.txt'
+    input_file_path = 'input_text\\whatsapp_msg_def.txt'
+    output_file_path = 'input_text\\whatsapp_msg.txt'
 
     # Concatenate string representations of objects
     events_string = '\n'.join(str(event) for event in events)
@@ -599,7 +605,7 @@ def create_new_form(events):
         "mimeType": "application/vnd.google-apps.form"
     }
 
-    with open("form_description.txt", "r", encoding="utf-8") as file:
+    with open("input_text\\form_description.txt", "r", encoding="utf-8") as file:
         new_description = file.read()
 
     update_description = {
@@ -871,20 +877,20 @@ def create_new_form(events):
         print(error.content)
             
     # Load the JSON file into a dictionary
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    with open('data\\saved_vars.json', 'r') as file:
+        saved_vars = json.load(file)
 
     # Edit a single variable in the dictionary
-    config['last_access'] = f"{datetime.now().isoformat()}"
-    config['form_id'] = form_id
+    saved_vars['last_access'] = f"{datetime.now().isoformat()}"
+    saved_vars['form_id'] = form_id
     # Store the order of the questions by id, as apparently the responses are not stored in the same order as the questions, but do contain the questionid. 
     # After retrieving the responses, the answers can be organized by this id order. 
     form = forms_service.forms().get(formId=form_id).execute()
-    config['question_order'] = ' '.join([subsubitem["questionId"] for subsubitem in [subitem["question"] for subitem in [item["questionItem"] for item in form["items"]]]])
+    saved_vars['question_order'] = ' '.join([subsubitem["questionId"] for subsubitem in [subitem["question"] for subitem in [item["questionItem"] for item in form["items"]]]])
 
     # Save the updated dictionary back to the JSON file
-    with open('config.json', 'w') as file:
-        json.dump(config, file)     
+    with open('data\\saved_vars.json', 'w') as file:
+        json.dump(saved_vars, file)     
     
 def make_form_and_save(new_events):
     create_new_form(new_events)
@@ -1036,7 +1042,7 @@ class Reader(ttk.Frame):
         self.text_area = ScrolledText(self)
         self.text_area.pack(fill='both')
 
-        path = "whatsapp_msg.txt"
+        path = "input_text\\whatsapp_msg.txt"
         with open(path, encoding='utf-8') as f:
             self.text_area.delete('1.0', 'end')
             self.text_area.insert('end', f.read())

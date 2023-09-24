@@ -1,4 +1,6 @@
-# Ignore files ending in 'token.json'
+# Token files contain authentication info specific to google API scopes
 *token.json
-# ignore client secrets
+# client secrets contain general authentication info for a google account
 client_secrets.json
+# pickle files contain private data about athletes and events
+*.pkl
