@@ -4,3 +4,5 @@
 client_secrets.json
 # pickle files contain private data about athletes and events
 *.pkl
+# Ignore cleanup script
+git-filter-repo
