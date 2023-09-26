@@ -35,7 +35,12 @@ When the script is run, it automatically scrapes the KNKF page for new competiti
 * month_mapping: This is just here because it is a messy list to map month abbreviations with their full version. 
 * folder_id: This is the id associated with the Google Drive folder where automatically generated forms are stored.
 * script_id: This is the id associated with the Google Apps script which opens a form for members which are not registered with the Google organisation IJzersterk. 
-* sheet_id: This is the id associated with the sheet where new responses are stored. 
+* sheet_id: This is the id associated with the sheet where new responses are stored.
+
+
+
+![Image of the GUI](GUI_screenshot.png?raw=true "Title")
+
 
 # WARNING
 Be careful with the files in the tokens folder. These contain authentication keys which allow access to your google account.
